@@ -1,9 +1,9 @@
-// script.js - fully fixed PDF export version
+// script.js - fully fixed for web display + readable PDF
 let allWords = [];
 let selectedWords = [];
 let resultsForDownload = []; // { word, studentAns, correctChinese }
 
-// Load words from JSON
+// Load words
 async function loadWords() {
   const response = await fetch("word_bank.json");
   if (!response.ok) throw new Error("Failed to load word_bank.json");
@@ -12,7 +12,7 @@ async function loadWords() {
   allWords = data.words;
 }
 
-// Pick up to 25 random words
+// Pick up to 25 words randomly
 function pickRandom25(words) {
   const shuffled = [...words].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, Math.min(25, shuffled.length));
@@ -51,7 +51,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
   document.getElementById("resultTitle").classList.add("hidden");
 });
 
-// Show correct answers
+// Show correct answers and store results
 document.getElementById("submitBtn").addEventListener("click", async () => {
   const resultsDiv = document.getElementById("results");
   resultsDiv.innerHTML = "";
@@ -61,33 +61,32 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     const word = selectedWords[i].word;
     const studentAns = document.getElementById(`answer-${i}`).value.trim();
 
-    let correctChinese = "（翻譯失敗）"; // default if fetch fails
+    let correctChinese = "（翻譯失敗）";
 
     try {
       const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=" + encodeURIComponent(word);
       const resp = await fetch(url);
       if (resp.ok) {
         const data = await resp.json();
-        // Safe explicit check for nested array
         if (Array.isArray(data) && data[0] && data[0][0] && data[0][0][0]) {
           correctChinese = data[0][0][0];
         } else {
           correctChinese = "（無結果）";
         }
-      } else {
-        correctChinese = "（翻譯失敗）";
       }
     } catch (e) {
       console.error("Translation error for", word, e);
       correctChinese = "（翻譯失敗）";
     }
 
+    // Store results for PDF download
     resultsForDownload.push({
       word,
       studentAns: studentAns || "（空白）",
       correctChinese
     });
 
+    // Display on webpage
     const row = document.createElement("div");
     row.innerHTML = `
       <p>
@@ -103,7 +102,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   document.getElementById("downloadBtn").classList.remove("hidden");
 });
 
-// Download results as PDF
+// Download results as PDF (readable default font)
 document.getElementById("downloadBtn").addEventListener("click", () => {
   if (!resultsForDownload.length) {
     alert("No results to download. Please run a test first.");
@@ -111,29 +110,29 @@ document.getElementById("downloadBtn").addEventListener("click", () => {
   }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
 
-  let y = 15;
-  doc.setFontSize(14);
-  doc.text("Vocabulary Test Results", 10, y);
-  y += 8;
+  let y = 40;
+  doc.setFont("helvetica", "normal"); // safe default font
+  doc.setFontSize(16);
+  doc.text("Vocabulary Test Results", 40, y);
+  y += 25;
 
-  doc.setFontSize(10);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 10, y);
-  y += 10;
+  doc.setFontSize(12);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 40, y);
+  y += 20;
 
   resultsForDownload.forEach((r, i) => {
-    if (y > 280) { // add new page if near bottom
+    if (y > 770) { // new page if bottom reached
       doc.addPage();
-      y = 15;
+      y = 40;
     }
-
-    doc.text(`${i + 1}. ${r.word}`, 10, y);
-    y += 6;
-    doc.text(`Your answer: ${r.studentAns}`, 12, y);
-    y += 6;
-    doc.text(`Reference: ${r.correctChinese}`, 12, y);
-    y += 10;
+    doc.text(`${i + 1}. ${r.word}`, 40, y);
+    y += 16;
+    doc.text(`Your answer: ${r.studentAns}`, 60, y);
+    y += 16;
+    doc.text(`Reference: ${r.correctChinese}`, 60, y);
+    y += 20;
   });
 
   doc.save("vocab_results.pdf");
